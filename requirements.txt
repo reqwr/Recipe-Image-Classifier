@@ -12,4 +12,5 @@ PyYAML
 faiss-cpu
 streamlit
 Pillow
+huggingface_hub
 -e .

@@ -1,10 +1,9 @@
 import os
 import sys
-import pandas as pd
-from sklearn.model_selection import train_test_split
-
-from src.exception import CustomException
+from pathlib import Path
+from huggingface_hub import hf_hub_download, hf_hub_url
 from src.logger import logging
+from src.exception import CustomException
 from src.config.configuration import ConfigurationManager
 
 class DataIngestion:
@@ -13,27 +12,27 @@ class DataIngestion:
         self.config = config_manager.get_data_ingestion_config()
 
     def initiate_data_ingestion(self):
-        logging.info("Entered the data ingestion method or component.")
+        logging.info("Initiating data ingestion.")
         try:
-            df = pd.read_csv(self.config.source_path)
-            logging.info("Read the source dataset as dataframe.")
+            repo_id = self.config.hf_repo_id
+            subdir = self.config.hf_images_subdir
+            target_dir = self.config.download_dir
+            os.makedirs(target_dir, exist_ok=True)
 
-            os.makedirs(os.path.dirname(self.config.raw_data_path), exist_ok=True)
+            logging.info(f"Downloading from Hugging Face repo.")
 
-            df.to_csv(self.config.raw_data_path, index=False, header=True)
+            file_list_path = hf_hub_download(repo_id=repo_id, filename=f"{subdir}/file_list.txt")
+            with open(file_list_path, "r") as f:
+                files = [line.strip() for line in f.readlines()]
+
+            for file_rel in files:
+                url = hf_hub_url(repo_id=repo_id, filename=file_rel)
+                dest_path = os.path.join(target_dir, Path(file_rel).name)
+                # Download file
+                hf_hub_download(repo_id=repo_id, filename=file_rel, local_dir=target_dir, force_download=True)
             
-            logging.info("Train-test split initiated.")
-            train_set, test_set = train_test_split(df, test_size=self.config.test_size, random_state=self.config.random_state)
+            logging.info(f"Finished data ingestion.")
+            return target_dir
 
-            train_set.to_csv(self.config.train_data_path, index=False, header=True)
-
-            test_set.to_csv(self.config.test_data_path, index=False, header=True)
-
-            logging.info("Ingestion of the data is completed.")
-
-            return (
-                self.config.train_data_path,
-                self.config.test_data_path
-            )
         except Exception as e:
             raise CustomException(e, sys)

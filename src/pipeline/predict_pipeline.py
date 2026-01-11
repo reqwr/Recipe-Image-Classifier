@@ -1,43 +1,56 @@
+import os
 import sys
-import tensorflow as tf
 import numpy as np
-from pathlib import Path
-from PIL import Image
+from tensorflow.keras.preprocessing.image import load_img, img_to_array
+import pickle
+
 from src.logger import logging
 from src.exception import CustomException
-from src.config.configuration import ConfigurationManager
-from src.utils import load_keras, load_npy, load_faiss, load_joblib
+from src.components.data_ingestion import DataIngestion
+from src.components.data_transformation import DataTransformation
+from src.utils import load_keras  # optional utility if you use custom wrapper
 
-class PredictionPipeline:
-    def __init__(self, embedding_model, pca, index, image_paths):
-        self.embedding_model = embedding_model
-        self.pca = pca
-        self.index = index
-        self.image_paths = image_paths
-
-    def load_and_preprocess_image(self, data, img_size=(224,224)):
-        if isinstance(data, str):  # file path
-            img = tf.keras.preprocessing.image.load_img(data, target_size=img_size)
-        else:  # BytesIO uploaded file
-            img = Image.open(data)
-            img = img.resize(img_size)
-        img = tf.keras.preprocessing.image.img_to_array(img)
-        img = img / 255.0
-        return np.expand_dims(img, axis=0)
-
-    def initiate_pipeline(self, data, k):
-        logging.info("Initiating prediction pipeline.")
+class PredictionPipeline():
+    def __init__(self, model_path, preprocessor_path):
         try:
-            logging.info("Preprocessing image.")
-            img = self.load_and_preprocess_image(data)
+            logging.info("Loading trained model for predictions.")
+            if not os.path.exists(model_path):
+                raise FileNotFoundError(f"Model not found at {model_path}")
+            self.model = load_keras(model_path)
 
-            embedding = self.embedding_model.predict(img, verbose=0)
-            embedding = embedding / np.linalg.norm(embedding, axis=1, keepdims=True)
+            logging.info("Loading preprocessor (ImageDataGenerator).")
+            if not os.path.exists(preprocessor_path):
+                raise FileNotFoundError(f"Preprocessor not found at {preprocessor_path}")
+            with open(preprocessor_path, "rb") as f:
+                self.datagen = pickle.load(f)
 
-            embedding_pca = self.pca.transform(embedding)
+            self.img_width = getattr(self.datagen, "target_size", (224, 224))[0]
+            self.img_height = getattr(self.datagen, "target_size", (224, 224))[1]
 
-            _, indices = self.index.search(embedding_pca, k)
-            return self.image_paths[indices[0]].tolist()
+        except Exception as e:
+            raise CustomException(e, sys)
 
+    def preprocess_image(self, image_path):
+        try:
+            img = load_img(image_path, target_size=(self.img_width, self.img_height))
+            arr = img_to_array(img) / 255.0 
+            arr = np.expand_dims(arr, axis=0)
+            return arr
+        except Exception as e:
+            raise CustomException(e, sys)
+
+    def predict_single_image(self, image_path):
+        try:
+            x = self.preprocess_image(image_path)
+            preds = self.model.predict(x)
+            return preds[0]
+        except Exception as e:
+            raise CustomException(e, sys)
+
+    def predict_batch(self, image_paths):
+        try:
+            batch = np.vstack([self.preprocess_image(p) for p in image_paths])
+            preds = self.model.predict(batch)
+            return preds
         except Exception as e:
             raise CustomException(e, sys)

@@ -1,17 +1,25 @@
 data_ingestion:
-  source_path:
-  raw_data_path:
-  train_data_path:
-  test_data_path:
+  hf_repo_id: "cyuangli/WebEats-v3"
+  hf_images_subdir: "images"       # subfolder inside the repo
+  download_dir: "data/images"
+
+data_transformation:
+  img_width: 224
+  img_height: 224
+  batch_size: 32
   test_size: 0.2
   random_state: 42
+  preprocessor_save_path: "artifacts/data/data_transformation/"
 
 model_training:
-  image_width: 244
-  image_height: 244
-  batch_size: 32
-  num_class: 90
-  epochs: 3
-  fine_tuning_epochs: 10
-  lr: 1e-5
-  save_path: artifacts/model_training
+  img_width: 224
+  img_height: 224
+  num_classes: 90
+  base_model: "InceptionV3"
+  initial_epochs: 3
+  fine_tuning_epochs: 5
+  learning_rate_initial: 1e-3
+  learning_rate_finetune: 1e-5
+  freeze_top_layers: 40
+  freeze_bottom_layers: 100
+  model_save_path: "artifacts/model_training/food_model.keras"
