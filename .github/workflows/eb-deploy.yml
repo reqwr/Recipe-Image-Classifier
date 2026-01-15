@@ -10,30 +10,37 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Checkout your repository
       - name: Checkout code
         uses: actions/checkout@v3
 
+      # 2️⃣ Set up Python 3.11
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.11"
 
+      # 3️⃣ Install dependencies
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      # 4️⃣ Zip the application (exclude unnecessary files)
       - name: Zip application
-        run: zip -r app.zip . -x "*.git*" "*.github*" "__pycache__/*"
+        run: zip -r app.zip . -x "*.git*" "*.github*" "__pycache__/*" "*.DS_Store"
 
+      # 5️⃣ Configure AWS credentials from GitHub secrets
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ca-central-1   # change to your EB region
+          aws-region: ca-central-1   # make sure this matches your EB + S3 region
 
+      # 6️⃣ Upload zip to S3
       - name: Upload zip to S3
-        run: aws s3 cp app.zip s3://web-eats-eb-bucket/app.zip
+        run: aws s3 cp app.zip s3://webeats-eb-bucket/app.zip
 
+      # 7️⃣ Deploy to Elastic Beanstalk
       - name: Deploy to Elastic Beanstalk
         run: |
           aws elasticbeanstalk create-application-version \
